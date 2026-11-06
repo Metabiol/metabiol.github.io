@@ -190,6 +190,9 @@
   .pie { display: grid; gap: 44px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); align-items: start; }
 
   /* Bitácora */
+  .bit-cab { margin-bottom: 12px; }
+  .hist-estado { display: inline-flex; align-items: center; gap: 7px; padding: 3px 11px; border: 1.5px solid var(--c); border-radius: 999px; background: var(--tablero); color: var(--ctx); font-size: 13px; font-weight: 600; }
+  .hist-estado::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
   .filtros { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; font-size: 15px; }
   .filtros select, .form-rev input, .form-rev select { padding: 6px 8px; border: 1.5px solid var(--linea); border-radius: 6px; background: var(--tablero); }
   .filtros select:focus-visible, .form-rev input:focus-visible, .form-rev select:focus-visible { outline: 3px solid var(--marcador); outline-offset: 1px; }
@@ -254,6 +257,7 @@
     .gas-lista { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
     .aviso-cab { font-size: 16px; }
     .rev-items { padding-left: 14px; }
+    .segmento button { padding: 6px 10px; }
   }
 
   /* Sin animaciones para quien las desactiva: borde fijo más grueso */
@@ -393,7 +397,10 @@
 
     <div class="seccion pie">
       <section class="bitacora" aria-labelledby="t-bit">
-        <h2 id="t-bit">Bitácora de eventos</h2>
+        <div class="seccion-cab bit-cab">
+          <h2 id="t-bit">Bitácora de eventos</h2>
+          <span id="hist-estado" class="hist-estado" data-nivel="sindato" hidden></span>
+        </div>
         <div class="filtros">
           <select id="f-sensor" aria-label="Filtrar por sensor">
             <option value="todos">Todos los sensores</option>
@@ -410,7 +417,6 @@
             <option value="conexion">Conexión y desconexión</option>
             <option value="revision">Revisiones</option>
             <option value="lectura">Lecturas (cada minuto)</option>
-            <option value="todo">Todo, con lecturas</option>
           </select>
           <span id="f-conteo" class="conteo"></span>
         </div>
@@ -476,7 +482,7 @@
      'simulado'   -> datos inventados, para probar la interfaz sin placas.
    ================================================================== */
 const CONFIG = {
-  modo: 'mqtt',            // 'mqtt' (actual) o 'simulado'
+  modo: 'mqtt',            // 'mqtt' (actual) o 'simulado' (sin placas ni servidor)
 
   intervaloMs: 2000,       // frecuencia del modo simulado
   ventanaMaxMin: 30,       // minutos de historial de la gráfica que se guardan en memoria
@@ -504,6 +510,15 @@ const CONFIG = {
       { id: 'temperatura', nombre: 'ESP32 de temperatura', corto: 'temperatura', campos: { temp: 'temperatura' } },
       { id: 'presion',     nombre: 'Placa de presión (UNO R4 WiFi)', corto: 'presión', campos: { psi: 'presion' } }
     ]
+  },
+
+  // Historial 24/7 en Supabase (lo llena EMQX). Esta llave es PÚBLICA y solo permite leer:
+  // las reglas de seguridad de la base de datos no dejan escribir con ella.
+  // NUNCA pongan aquí la "secret key".
+  supabase: {
+    url: 'https://yedrhewssqdixkispjtv.supabase.co',
+    llave: 'sb_publishable_FXMJUHJyRe36fhH9VAuKsw_Ej_29rdh',
+    consultaMs: 15000      // cada cuánto se buscan eventos nuevos para la bitácora
   }
 };
 
@@ -786,9 +801,160 @@ function pintarGas(ahora) {
 }
 
 /* ==================================================================
-   7. GRÁFICA DE TENDENCIA (SVG a mano, sin librerías)
+   7. HISTORIAL EN EL SERVIDOR (Supabase)
+   La página solo LEE con la llave pública. Quien escribe es EMQX
+   (lecturas cada minuto y eventos de las placas), las 24 horas.
+   ================================================================== */
+const SRV = CONFIG.modo === 'mqtt' && CONFIG.supabase && CONFIG.supabase.url ? CONFIG.supabase : null;
+let estadoServidor = SRV ? 'cargando' : 'apagado';
+
+async function srv(ruta, cuerpo) {
+  const op = { headers: { apikey: SRV.llave, 'Content-Type': 'application/json' }, cache: 'no-store' };
+  if (cuerpo) { op.method = 'POST'; op.body = JSON.stringify(cuerpo); }
+  const r = await fetch(`${SRV.url}/rest/v1/${ruta}`, op);
+  if (!r.ok) throw new Error('Servidor ' + r.status);
+  return r.json();
+}
+function marcarServidor(ok) {
+  const nuevo = ok ? 'ok' : 'error';
+  if (nuevo !== estadoServidor) { estadoServidor = nuevo; pintarEstadoServidor(); }
+}
+function pintarEstadoServidor() {
+  const el = $('#hist-estado');
+  el.hidden = !SRV;
+  el.dataset.nivel = estadoServidor === 'ok' ? 'ok' : (estadoServidor === 'error' ? 'critico' : 'sindato');
+  el.textContent = estadoServidor === 'ok' ? 'Historial compartido 24/7'
+    : (estadoServidor === 'error' ? 'Historial sin conexión, reintentando' : 'Cargando historial…');
+}
+const dispDe = id => CONFIG.mqtt.dispositivos.find(d => d.id === id);
+const dispNombre = id => (dispDe(id) || { nombre: id }).nombre;
+const sensorDe = id => (['gas', 'temperatura', 'presion'].includes(id) ? id : 'sistema');
+const campoDe = id => Object.keys((dispDe(id) || { campos: {} }).campos)[0];
+
+/* Un evento guardado por EMQX -> formato de la bitácora */
+function convertirEvento(f) {
+  const t = Date.parse(f.recibido), m = String(f.mensaje || '');
+  if (f.tipo === 'conexion') {
+    const off = /offline/i.test(m);
+    return { id: f.id, t, texto: `${dispNombre(f.dispositivo)}: ${off ? 'desconectada' : 'en línea'}`,
+             nivel: off ? 'alerta' : 'ok', sensor: sensorDe(f.dispositivo), tipo: 'conexion' };
+  }
+  // Los mensajes de las placas empiezan con un emoji que indica la gravedad
+  const nivel = /🔴/u.test(m) ? 'critico' : (/🟠|🔵|⚠/u.test(m) ? 'alerta' : (/🟢|✅/u.test(m) ? 'ok' : 'info'));
+  return { id: f.id, t, texto: m, nivel, sensor: sensorDe(f.dispositivo),
+           tipo: nivel === 'ok' ? 'normal' : (nivel === 'info' ? 'sistema' : 'alerta') };
+}
+
+const evServidor = [];       // del más antiguo al más reciente
+let hayAnteriores = true;
+async function cargarEventos(modo) {
+  try {
+    let filas;
+    if (modo === 'nuevos') {
+      const max = evServidor.length ? evServidor[evServidor.length - 1].id : 0;
+      filas = await srv(`eventos?select=*&id=gt.${max}&order=id.asc&limit=500`);
+      filas.forEach(f => evServidor.push(convertirEvento(f)));
+    } else {                   // carga inicial o "Mostrar más" (eventos más antiguos)
+      const min = evServidor.length ? evServidor[0].id : null;
+      filas = await srv(`eventos?select=*${min ? `&id=lt.${min}` : ''}&order=id.desc&limit=300`);
+      hayAnteriores = filas.length === 300;
+      evServidor.unshift(...filas.reverse().map(convertirEvento));
+    }
+    marcarServidor(true);
+    if (filas.length || modo !== 'nuevos') pintarBitacora();
+  } catch (e) { marcarServidor(false); }
+}
+
+/* Una lectura guardada (1 por minuto) -> texto para la bitácora */
+function lecturaComoEvento(f) {
+  const t = Date.parse(f.recibido), d = f.datos || {};
+  let texto, nivel = 'info';
+  if (f.dispositivo === 'gas') {
+    const s = Array.isArray(d.sensores) ? d.sensores : ('fuga' in d ? [d.fuga] : []);
+    const l = Array.isArray(d.lecturas) ? d.lecturas : ('lectura' in d ? [d.lectura] : []);
+    const fuga = s.some(x => Number(x));
+    nivel = fuga ? 'critico' : 'ok';
+    texto = `Gas: ${fuga ? 'fuga detectada' : 'sin fuga'} — ` +
+      s.map((x, i) => `${nombreGas(i)} ${Number(x) ? 'FUGA' : 'ok'}${Number.isFinite(Number(l[i])) ? ' ' + l[i] : ''}`).join(' · ');
+  } else {
+    const p = PARAMETROS.find(x => x.sensor === f.dispositivo), v = Number(d[campoDe(f.dispositivo)]);
+    if (p && Number.isFinite(v)) {
+      const c = clasificar(p, v);
+      nivel = c.nivel;
+      texto = `${p.nombre}: ${v.toFixed(p.dec)} ${p.unidad} (${c.etiqueta.toLowerCase()})`;
+    } else {
+      texto = `${dispNombre(f.dispositivo)}: ${JSON.stringify(d)}`;
+    }
+  }
+  return { id: f.id, t, texto, nivel, sensor: sensorDe(f.dispositivo), tipo: 'lectura' };
+}
+let lectServidor = [], lectFin = false, lectCargando = false;
+async function cargarLecturasBitacora(reiniciar) {
+  if (reiniciar) { lectServidor = []; lectFin = false; }
+  if (lectFin || lectCargando) return;
+  lectCargando = true;
+  const fs = $('#f-sensor').value;
+  if (!['todos', 'gas', 'temperatura', 'presion'].includes(fs)) { lectFin = true; lectCargando = false; pintarBitacora(); return; }
+  const filtro = fs === 'todos' ? '' : `&dispositivo=eq.${fs}`;
+  try {
+    const filas = await srv(`lecturas?select=id,recibido,dispositivo,datos${filtro}&order=id.desc&limit=300&offset=${lectServidor.length}`);
+    lectFin = filas.length < 300;
+    lectServidor.push(...filas.map(lecturaComoEvento));
+    marcarServidor(true);
+  } catch (e) { marcarServidor(false); }
+  lectCargando = false;
+  pintarBitacora();
+}
+
+/* Al abrir la página: rellena la gráfica con las lecturas de los últimos 30 min */
+async function precargarHistorial() {
+  try {
+    const desde = encodeURIComponent(new Date(Date.now() - CONFIG.ventanaMaxMin * 60000).toISOString());
+    const filas = await srv(`lecturas?select=recibido,dispositivo,datos&recibido=gte.${desde}&order=recibido.asc&limit=1000`);
+    for (const f of filas) {
+      const disp = dispDe(f.dispositivo);
+      if (!disp || !f.datos) continue;
+      for (const campo in disp.campos) {
+        const id = disp.campos[campo], v = Number(f.datos[campo]);
+        if (historial[id] && Number.isFinite(v)) historial[id].push({ t: Date.parse(f.recibido), v });
+      }
+    }
+    for (const id in historial) historial[id].sort((a, b) => a.t - b.t);
+    marcarServidor(true);
+    dibujarGrafica();
+  } catch (e) { marcarServidor(false); }
+}
+
+/* Ventanas largas (1 h, 24 h, 7 días): promedios calculados en el servidor */
+const CUBETA = { 60: 60, 1440: 300, 10080: 1800 };   // segundos por punto
+const serieCache = {};
+async function cargarSerie(p, min) {
+  const clave = p.id + '|' + min, c = serieCache[clave];
+  if (c && (c.cargando || Date.now() - c.ts < 60000)) return;
+  serieCache[clave] = { datos: c ? c.datos : [], ts: c ? c.ts : 0, cargando: true };
+  const cubeta = CUBETA[min];
+  try {
+    const filas = await srv('rpc/serie', {
+      p_disp: p.sensor, p_campo: campoDe(p.sensor),
+      p_desde: new Date(Date.now() - min * 60000).toISOString(), p_cubeta_seg: cubeta
+    });
+    serieCache[clave] = { ts: Date.now(), cargando: false,
+      datos: filas.map(f => ({ t: Date.parse(f.t) + cubeta * 500, v: f.prom, min: f.minimo, max: f.maximo })) };
+    marcarServidor(true);
+  } catch (e) {
+    serieCache[clave] = { datos: c ? c.datos : [], ts: Date.now(), cargando: false, error: true };
+    marcarServidor(false);
+  }
+  if (seleccion === p.id && ventanaMin === min) dibujarGrafica();
+}
+
+/* ==================================================================
+   8. GRÁFICA DE TENDENCIA (SVG a mano, sin librerías)
    ================================================================== */
 const graf = { x: null, activo: false };   // posición del puntero/dedo sobre la gráfica
+const VENTANAS = { 5: '5 min', 15: '15 min', 30: '30 min', 60: '1 h', 1440: '24 h', 10080: '7 días' };
+// Cuadrícula vertical por ventana: [línea principal, línea secundaria] en ms ('dia' = medianoche local)
+const REJILLA_T = { 5: [60e3, 30e3], 15: [180e3, 90e3], 30: [300e3, 150e3], 60: [600e3, 300e3], 1440: [3 * 3600e3, 3600e3], 10080: ['dia', 6 * 3600e3] };
 
 function construirControlesGrafica() {
   const sp = $('#sel-param');
@@ -800,9 +966,9 @@ function construirControlesGrafica() {
     sp.appendChild(b);
   });
   const sv = $('#sel-ventana');
-  [5, 15, 30].forEach(m => {
+  Object.keys(VENTANAS).map(Number).filter(m => SRV || m <= CONFIG.ventanaMaxMin).forEach(m => {
     const b = document.createElement('button');
-    b.type = 'button'; b.textContent = `${m} min`; b.dataset.min = m;
+    b.type = 'button'; b.textContent = VENTANAS[m]; b.dataset.min = m;
     b.setAttribute('aria-pressed', String(m === ventanaMin));
     b.addEventListener('click', () => {
       ventanaMin = m;
@@ -840,7 +1006,8 @@ function seleccionar(id) {
   const u = p.unidad ? ' ' + p.unidad : '';
   $('#leyenda').textContent =
     `Zona verde: normal (${p.normal[0]} a ${p.normal[1]}${u}). Zona ámbar: alerta (${p.alerta[0]} a ${p.alerta[1]}${u}). Fuera de eso, el estado es crítico. ` +
-    `Pasa el puntero o toca la línea para ver cada lectura.`;
+    `Pasa el puntero o toca la línea para ver cada lectura.` +
+    (SRV ? ' En 1 h, 24 h y 7 días se muestran promedios guardados en el servidor.' : '');
   dibujarGrafica();
 }
 
@@ -849,6 +1016,7 @@ function pasoBonito(bruto) {
   const f = bruto / pot;
   return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * pot;
 }
+const RANGO = { ok: 0, alerta: 1, critico: 2 };
 
 function dibujarGrafica() {
   const p = PARAMETROS.find(x => x.id === seleccion);
@@ -858,10 +1026,11 @@ function dibujarGrafica() {
   const pw = W - m.i - m.d, ph = H - m.s - m.b;
   const [ymin, ymax] = p.escala;
   const ahora = Date.now(), t0 = ahora - ventanaMin * 60000;
+  const largo = ventanaMin > CONFIG.ventanaMaxMin;
   const X = t => m.i + (t - t0) / (ahora - t0) * pw;
   const Y = v => m.s + (1 - (Math.min(Math.max(v, ymin), ymax) - ymin) / (ymax - ymin)) * ph;
 
-  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Gráfica de tendencia: ${p.nombre}">`;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Gráfica de tendencia: ${p.nombre}, ${VENTANAS[ventanaMin]}">`;
   // Zonas de color
   s += `<rect class="gz-crit" x="${m.i}" y="${m.s}" width="${pw}" height="${ph}"/>`;
   s += `<rect class="gz-alerta" x="${m.i}" y="${Y(p.alerta[1])}" width="${pw}" height="${Y(p.alerta[0]) - Y(p.alerta[1])}"/>`;
@@ -876,28 +1045,51 @@ function dibujarGrafica() {
     s += `<line class="${principal ? 'g-rejilla' : 'g-rejilla-menor'}" x1="${m.i}" y1="${y}" x2="${m.i + pw}" y2="${y}"/>`;
     if (principal) s += `<text x="${m.i - 8}" y="${Number(y) + 4}" text-anchor="end">${v.toFixed(decPaso)}</text>`;
   }
-  // Cuadrícula vertical (tiempo): líneas en minutos redondos con la hora
-  const tick = { 5: 1, 15: 3, 30: 5 }[ventanaMin] * 60000, menor = tick / 2;
-  const saltoEtq = W < 480 && ventanaMin !== 15 ? 2 : 1;
+  // Cuadrícula vertical (tiempo)
+  const [tick, menor] = REJILLA_T[ventanaMin];
+  const lineasT = [];   // [t, principal]
+  for (let t = Math.ceil(t0 / menor) * menor; t <= ahora; t += menor) lineasT.push([t, tick !== 'dia' && t % tick === 0]);
+  if (tick === 'dia') {
+    const d = new Date(t0);
+    for (let k = 1; k <= 8; k++) {
+      const t = new Date(d.getFullYear(), d.getMonth(), d.getDate() + k).getTime();
+      if (t <= ahora) lineasT.push([t, true]);
+    }
+  }
+  const etiquetaT = t => (tick === 'dia'
+    ? new Date(t).toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric' }).replace('.', '')
+    : fmtHM(t));
+  const saltoEtq = W < 480 && [5, 30, 60].includes(ventanaMin) ? 2 : 1;
   let k = 0;
-  for (let t = Math.ceil(t0 / menor) * menor; t <= ahora; t += menor) {
-    const principal = t % tick === 0, x = X(t).toFixed(1);
+  for (const [t, principal] of lineasT.sort((a, b) => a[0] - b[0])) {
+    const x = X(t).toFixed(1);
     s += `<line class="${principal ? 'g-rejilla' : 'g-rejilla-menor'}" x1="${x}" y1="${m.s}" x2="${x}" y2="${m.s + ph}"/>`;
     if (principal) {
-      if (k % saltoEtq === 0 && X(t) > m.i + 14 && X(t) < m.i + pw - 14) s += `<text x="${x}" y="${H - 9}" text-anchor="middle">${fmtHM(t)}</text>`;
+      if (k % saltoEtq === 0 && X(t) > m.i + 16 && X(t) < m.i + pw - 16) s += `<text x="${x}" y="${H - 9}" text-anchor="middle">${etiquetaT(t)}</text>`;
       k++;
     }
   }
   s += `<rect class="g-marco" x="${m.i}" y="${m.s}" width="${pw}" height="${ph}"/>`;
 
-  const puntos = historial[p.id].filter(q => q.t >= t0);
+  // Datos: memoria (5–30 min) o promedios del servidor (1 h, 24 h, 7 días)
+  let puntos, hueco, serie = null;
+  if (largo) {
+    cargarSerie(p, ventanaMin);
+    serie = serieCache[p.id + '|' + ventanaMin] || { datos: [], cargando: true };
+    puntos = serie.datos.filter(q => q.t >= t0);
+    hueco = CUBETA[ventanaMin] * 2500;
+  } else {
+    puntos = historial[p.id].filter(q => q.t >= t0);
+    hueco = 90000;   // más de 1.5 min sin datos = línea cortada
+  }
   let resaltado = null;
   if (!puntos.length) {
-    s += `<text x="${m.i + pw / 2}" y="${m.s + ph / 2}" text-anchor="middle">Sin datos en esta ventana</text>`;
+    const msg = serie && serie.cargando ? 'Cargando historial…' : (serie && serie.error ? 'No se pudo cargar el historial' : 'Sin datos en esta ventana');
+    s += `<text x="${m.i + pw / 2}" y="${m.s + ph / 2}" text-anchor="middle">${msg}</text>`;
   } else {
     let d = '', previo = null;
     for (const q of puntos) {
-      const corte = previo === null || q.t - previo > CONFIG.sinDatoMs;   // hueco = línea cortada
+      const corte = previo === null || q.t - previo > hueco;
       d += `${corte ? 'M' : 'L'}${X(q.t).toFixed(1)} ${Y(q.v).toFixed(1)} `;
       previo = q.t;
     }
@@ -921,10 +1113,16 @@ function dibujarGrafica() {
 
   // Recuadro de información
   if (!resaltado) { tip.hidden = true; return; }
-  const c = clasificar(p, resaltado.v);
+  let c = clasificar(p, resaltado.v), extra = '';
+  if (largo) {   // en promedios, el estado es el peor entre el mínimo y el máximo de ese periodo
+    const cmin = clasificar(p, resaltado.min), cmax = clasificar(p, resaltado.max);
+    c = [c, cmin, cmax].reduce((a, b) => (RANGO[b.nivel] > RANGO[a.nivel] ? b : a));
+    const minutos = CUBETA[ventanaMin] / 60;
+    extra = `<div class="tt-fecha">Promedio de ${minutos} min · mín ${resaltado.min.toFixed(p.dec)}, máx ${resaltado.max.toFixed(p.dec)}</div>`;
+  }
   tip.innerHTML =
-    `<div class="tt-fecha">${fmtLarga(resaltado.t)} · ${fmtHora(resaltado.t)}</div>` +
-    `<div class="tt-valor">${resaltado.v.toFixed(p.dec)} <span>${p.unidad}</span></div>` +
+    `<div class="tt-fecha">${fmtLarga(resaltado.t)} · ${largo ? fmtHM(resaltado.t) : fmtHora(resaltado.t)}</div>` +
+    `<div class="tt-valor">${resaltado.v.toFixed(p.dec)} <span>${p.unidad}</span></div>` + extra +
     `<div class="tt-estado" data-nivel="${c.nivel}">${c.etiqueta}</div>`;
   tip.hidden = false;
   const off = 8;   // padding del contenedor
@@ -939,7 +1137,10 @@ function dibujarGrafica() {
 }
 
 /* ==================================================================
-   8. BITÁCORA (se guarda en este dispositivo)
+   9. BITÁCORA
+   Con servidor: los eventos de los sensores vienen de Supabase (los mismos
+   para todos). En este dispositivo solo se guardan revisiones y avisos del sistema.
+   Sin servidor (modo simulado): todo se guarda en este dispositivo.
    ================================================================== */
 const CLAVE_BIT = 'biodigestor.bitacora.v2';
 const LIMITE_EVENTOS = 6000;
@@ -951,6 +1152,8 @@ let limiteVista = 200, guardadoPendiente = null;
 /* tipo: 'alerta' | 'normal' | 'conexion' | 'revision' | 'lectura' | 'sistema'
    sensor: 'gas' | 'temperatura' | 'presion' | 'seguridad' | 'sistema' */
 function registrar(texto, nivel = 'info', sensor = 'sistema', tipo = 'sistema') {
+  // Con servidor, lo de los sensores ya lo guarda EMQX: no se duplica aquí
+  if (SRV && (tipo === 'lectura' || ['gas', 'temperatura', 'presion'].includes(sensor))) return;
   eventos.push({ t: Date.now(), texto, nivel, sensor, tipo });
   if (tipo !== 'lectura') pintarBitacora();
   programarGuardado();
@@ -972,16 +1175,28 @@ function programarGuardado() {
   }, 2000);
 }
 
+function fuenteBitacora() {
+  if (!SRV) return eventos;
+  const locales = eventos.filter(e => e.tipo === 'revision' || e.tipo === 'sistema');
+  return evServidor.concat(locales).sort((a, b) => a.t - b.t);
+}
+
 function pintarBitacora() {
   const fs = $('#f-sensor').value, ft = $('#f-tipo').value;
-  const lista = [];
-  for (let i = eventos.length - 1; i >= 0; i--) {
-    const e = eventos[i];
-    if (fs !== 'todos' && e.sensor !== fs) continue;
-    if (ft === 'eventos' ? e.tipo === 'lectura' : (ft !== 'todo' && e.tipo !== ft)) continue;
-    lista.push(e);
+  let lista = [];
+  if (SRV && ft === 'lectura') {
+    lista = lectServidor;   // ya vienen de la más reciente a la más antigua
+  } else {
+    const fuente = fuenteBitacora();
+    for (let i = fuente.length - 1; i >= 0; i--) {
+      const e = fuente[i];
+      if (fs !== 'todos' && e.sensor !== fs) continue;
+      if (ft === 'eventos' ? e.tipo === 'lectura' : e.tipo !== ft) continue;
+      lista.push(e);
+    }
   }
-  $('#f-conteo').textContent = `${lista.length} ${lista.length === 1 ? 'registro' : 'registros'}`;
+  const masServidor = SRV && (ft === 'lectura' ? !lectFin : hayAnteriores);
+  $('#f-conteo').textContent = `${lista.length}${masServidor ? '+' : ''} ${lista.length === 1 ? 'registro' : 'registros'}`;
   const vista = lista.slice(0, limiteVista);
   let html = '', dia = null;
   for (const e of vista) {
@@ -989,22 +1204,38 @@ function pintarBitacora() {
     if (d !== dia) { dia = d; html += `<li class="sep"><span>${etiquetaDia(e.t)}</span></li>`; }
     html += `<li class="ev" data-nivel="${e.nivel}" data-tipo="${e.tipo}"><time datetime="${new Date(e.t).toISOString()}"><b>${fmtHora(e.t)}</b><small>${fmtCorta(e.t)}</small></time><i></i><span>${esc(e.texto)}</span></li>`;
   }
-  if (!vista.length) html = '<li class="vacio">No hay registros con este filtro.</li>';
+  if (!vista.length) {
+    html = `<li class="vacio">${SRV && estadoServidor === 'cargando' ? 'Cargando historial…' : 'No hay registros con este filtro.'}</li>`;
+  }
   $('#bitacora').innerHTML = html;
-  $('#bit-mas').hidden = lista.length <= limiteVista;
+  $('#bit-mas').hidden = !(lista.length > limiteVista || masServidor);
 }
 
 function construirBitacora() {
-  ['#f-sensor', '#f-tipo'].forEach(s => $(s).addEventListener('change', () => { limiteVista = 200; pintarBitacora(); $('#bitacora').scrollTop = 0; }));
-  $('#bit-mas').addEventListener('click', () => { limiteVista += 200; pintarBitacora(); });
+  if (SRV) $('#f-tipo').querySelector('option[value="lectura"]').textContent = 'Lecturas guardadas (cada minuto)';
+  ['#f-sensor', '#f-tipo'].forEach(s => $(s).addEventListener('change', () => {
+    limiteVista = 200;
+    $('#bitacora').scrollTop = 0;
+    if (SRV && $('#f-tipo').value === 'lectura') cargarLecturasBitacora(true);
+    pintarBitacora();
+  }));
+  $('#bit-mas').addEventListener('click', () => {
+    const ft = $('#f-tipo').value;
+    if (SRV && ft === 'lectura') { limiteVista += 300; cargarLecturasBitacora(false); return; }
+    const total = fuenteBitacora().length;
+    limiteVista += 200;
+    if (SRV && limiteVista >= total && hayAnteriores) cargarEventos('anteriores');
+    else pintarBitacora();
+  });
   podar();
+  pintarEstadoServidor();
   pintarBitacora();
 }
 
-/* Anota una lectura de cada sensor cada minuto (filtro "Lecturas") */
+/* Sin servidor: anota una lectura de cada sensor cada minuto (filtro "Lecturas") */
 let ultimaMuestra = 0;
 function muestrearLecturas(ahora) {
-  if (ahora - ultimaMuestra < CONFIG.muestraBitacoraMs) return;
+  if (SRV || ahora - ultimaMuestra < CONFIG.muestraBitacoraMs) return;
   ultimaMuestra = ahora;
   let alguna = false;
   for (const p of PARAMETROS) {
@@ -1019,11 +1250,11 @@ function muestrearLecturas(ahora) {
     registrar(`Gas: ${sensoresConFuga().length ? 'fuga detectada' : 'sin fuga'} — ${det}`, sensoresConFuga().length ? 'critico' : 'ok', 'gas', 'lectura');
     alguna = true;
   }
-  if (alguna && ['lectura', 'todo'].includes($('#f-tipo').value)) pintarBitacora();
+  if (alguna && $('#f-tipo').value === 'lectura') pintarBitacora();
 }
 
 /* ==================================================================
-   9. AVISOS (lista desplegable)
+   10. AVISOS (lista desplegable)
    ================================================================== */
 const CLAVE_AVISO = 'biodigestor.avisoAbierto';
 let avisoAbierto = almacen.leer(CLAVE_AVISO, false), avisoClave = '';
@@ -1088,7 +1319,7 @@ function actualizarAviso(items) {
 }
 
 /* ==================================================================
-   10. CICLO DE ACTUALIZACIÓN (1 vez por segundo y en cada lectura)
+   11. CICLO DE ACTUALIZACIÓN (1 vez por segundo y en cada lectura)
    ================================================================== */
 const previo = {};
 const INICIO_PAGINA = Date.now();
@@ -1184,7 +1415,7 @@ function setPlaca(disp, estado) {
 }
 
 /* ==================================================================
-   11. REVISIONES DE SEGURIDAD (se guardan en este dispositivo)
+   12. REVISIONES DE SEGURIDAD (se guardan en este dispositivo)
    ================================================================== */
 const CLAVE_CHECK = 'biodigestor.checklist';
 const CLAVE_REV = 'biodigestor.revisiones.v1';
@@ -1296,7 +1527,7 @@ function pintarHistorial() {
 }
 
 /* ==================================================================
-   12. ADAPTADORES DE DATOS
+   13. ADAPTADORES DE DATOS
    ================================================================== */
 
 /* --- Simulado --- */
@@ -1405,7 +1636,7 @@ function adaptadorMqtt() {
 const ADAPTADORES = { simulado: adaptadorSimulado, mqtt: adaptadorMqtt };
 
 /* ==================================================================
-   13. ARRANQUE
+   14. ARRANQUE
    ================================================================== */
 function iniciar() {
   construirTags();
@@ -1425,8 +1656,13 @@ function iniciar() {
     console.warn(`Modo "${CONFIG.modo}" no existe; se usa "simulado".`);
     CONFIG.modo = 'simulado';
   }
-  registrar(`Monitor iniciado (${NOMBRE_MODO[CONFIG.modo]})`, 'info', 'sistema', 'sistema');
+  if (!SRV) registrar(`Monitor iniciado (${NOMBRE_MODO[CONFIG.modo]})`, 'info', 'sistema', 'sistema');
   ADAPTADORES[CONFIG.modo]();
+  if (SRV) {   // historial compartido: bitácora y gráfica de los últimos 30 min
+    cargarEventos('anteriores');
+    precargarHistorial();
+    setInterval(() => cargarEventos('nuevos'), SRV.consultaMs);
+  }
 
   actualizar();
   setInterval(actualizar, 1000);
