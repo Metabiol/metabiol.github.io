@@ -532,8 +532,8 @@ const CONFIG = {
    ================================================================== */
 const PARAMETROS = [
   { id: 'temperatura', sensor: 'temperatura', nombre: 'Temperatura', corto: 'Temperatura', tipo: 'numero', unidad: '°C', dec: 1,
-    // Rangos de Temperatura_MQTT.ino: normal entre 20 y 30 °C; crítico fuera de 10–45 °C.
-    escala: [10, 45],  normal: [20, 30],   alerta: [10, 45] },
+    // Rangos de Temperatura_MQTT.ino: normal entre 25 y 35 °C; crítico fuera de 10–45 °C.
+    escala: [10, 45],  normal: [25, 35],   alerta: [10, 45] },
   { id: 'presion',     sensor: 'presion', nombre: 'Presión del gas', corto: 'Presión', tipo: 'numero', unidad: 'PSI', dec: 2,
     // El sensor mide de 0 a 10 PSI. Rangos PROVISIONALES: confirmarlos con el profesor.
     escala: [0, 10],   normal: [0, 2],     alerta: [0, 4] },
