@@ -1104,8 +1104,17 @@ function seleccionar(id) {
   $('#sel-param').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
   const p = PARAMETROS.find(x => x.id === id);
   const u = p.unidad ? ' ' + p.unidad : '';
+  // Zonas ámbar y rojas: solo las que existen (presión no tiene alerta por valor bajo)
+  const [nmin, nmax] = p.normal, [amin, amax] = p.alerta;
+  const ambar = [], rojo = [];
+  if (amin < nmin) ambar.push(`${amin} a ${nmin}${u}`);
+  if (amax > nmax) ambar.push(`${nmax} a ${amax}${u}`);
+  if (amin > p.escala[0]) rojo.push(`menos de ${amin}${u}`);
+  if (amax < p.escala[1]) rojo.push(`más de ${amax}${u}`);
   $('#leyenda').textContent =
-    `Zona verde: normal (${p.normal[0]} a ${p.normal[1]}${u}). Zona ámbar: alerta (${p.alerta[0]} a ${p.alerta[1]}${u}). Fuera de eso, el estado es crítico. ` +
+    `Zona verde: normal (${nmin} a ${nmax}${u}). ` +
+    (ambar.length ? `Zona ámbar: alerta (${ambar.join(' y ')}). ` : '') +
+    (rojo.length ? `Zona roja: crítico (${rojo.join(' o ')}). ` : '') +
     `Pasa el puntero o toca la línea para ver cada lectura.` +
     (SRV ? ' En 1 h, 24 h y 7 días se muestran promedios guardados en el servidor.' : '');
   dibujarGrafica();
@@ -1213,17 +1222,25 @@ function dibujarGrafica() {
 
   // Recuadro de información
   if (!resaltado) { tip.hidden = true; return; }
-  let c = clasificar(p, resaltado.v), extra = '';
-  if (largo) {   // en promedios, el estado es el peor entre el mínimo y el máximo de ese periodo
-    const cmin = clasificar(p, resaltado.min), cmax = clasificar(p, resaltado.max);
-    c = [c, cmin, cmax].reduce((a, b) => (RANGO[b.nivel] > RANGO[a.nivel] ? b : a));
+  // El estado es el del valor mostrado (en promedios, el del promedio)
+  const c = clasificar(p, resaltado.v);
+  let extra = '', aviso = '';
+  if (largo) {
     const minutos = CUBETA[ventanaMin] / 60;
     extra = `<div class="tt-fecha">Promedio de ${minutos} min · mín ${resaltado.min.toFixed(p.dec)}, máx ${resaltado.max.toFixed(p.dec)}</div>`;
+    // Si dentro del periodo hubo lecturas peores que el promedio, se avisa aparte
+    const cmin = clasificar(p, resaltado.min), cmax = clasificar(p, resaltado.max);
+    const peores = [cmin, cmax].filter(x => RANGO[x.nivel] > RANGO[c.nivel]);
+    if (peores.length) {
+      const peor = peores.reduce((a, b) => (RANGO[b.nivel] > RANGO[a.nivel] ? b : a));
+      const tipos = [...new Set(peores.map(x => (x.detalle === 'alto' ? 'altas' : 'bajas')))].join(' y ');
+      aviso = `<div class="tt-estado" data-nivel="${peor.nivel}">Hubo lecturas ${tipos}${peor.nivel === 'critico' ? ' (nivel crítico)' : ''} en esos ${minutos} min</div>`;
+    }
   }
   tip.innerHTML =
     `<div class="tt-fecha">${fmtLarga(resaltado.t)} · ${largo ? fmtHM(resaltado.t) : fmtHora(resaltado.t)}</div>` +
     `<div class="tt-valor">${resaltado.v.toFixed(p.dec)} <span>${p.unidad}</span></div>` + extra +
-    `<div class="tt-estado" data-nivel="${c.nivel}">${c.etiqueta}</div>`;
+    `<div class="tt-estado" data-nivel="${c.nivel}">${largo ? 'Promedio: ' : ''}${c.etiqueta}</div>` + aviso;
   tip.hidden = false;
   const off = 8;   // padding del contenedor
   const px = X(resaltado.t) + off, py = Y(resaltado.v) + off;
