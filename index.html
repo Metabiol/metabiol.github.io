@@ -217,7 +217,7 @@
   .form-rev { display: grid; gap: 10px 16px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 14px; }
   .form-rev label { display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 500; }
   .check-pie { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; color: var(--tinta-suave); font-size: 15px; }
-  .rev-error { margin: 10px 0 0; color: var(--critico-tx); font-weight: 600; font-size: 15px; }
+  .rev-error { margin: 10px 0 0; color: var(--ctx, var(--critico-tx)); font-weight: 600; font-size: 15px; }
   .rev-ultimas { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 16px 0 10px; font-size: 15px; }
   .rev-ultimas dt { color: var(--tinta-suave); }
   .rev-ultimas dd { margin: 0; font-weight: 600; }
@@ -227,6 +227,39 @@
   .boton-sec { padding: 8px 14px; border: 1.5px solid var(--marcador); border-radius: 6px; background: var(--tablero); font-weight: 500; cursor: pointer; }
   .boton-sec:hover { background: #E3E9F8; }
   .boton-sec[aria-pressed="true"] { background: var(--marcador); color: #fff; }
+
+  /* Acceso (login) */
+  .acceso { display: grid; place-items: center; min-height: 100vh; padding: 24px 16px; }
+  .acceso-tarjeta { width: min(420px, 100%); padding: 28px 26px 22px; border: 8px solid var(--marco); border-radius: 10px; background: var(--tablero); }
+  .acceso-marca { margin: 0 0 4px; font: 600 15px var(--fuente); letter-spacing: .08em; text-transform: uppercase; color: var(--tinta-suave); }
+  .form-acceso, .dlg-form form { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
+  .dlg-form form { margin-top: 0; }
+  .form-acceso label, .dlg-form label { display: flex; flex-direction: column; gap: 5px; font-size: 15px; font-weight: 500; }
+  .form-acceso input, .dlg-form input { padding: 10px 12px; border: 1.5px solid var(--linea); border-radius: 6px; background: #fff; font-size: 17px; }
+  .form-acceso input:focus-visible, .dlg-form input:focus-visible { outline: 3px solid var(--marcador); outline-offset: 1px; }
+  .form-acceso .boton { margin-top: 4px; padding: 12px; font-size: 17px; }
+  .acceso-nota { margin: 18px 0 0; font-size: 14px; }
+  .dlg-form { width: min(440px, calc(100vw - 24px)); }
+  .dlg-form h2 { margin: 0; }
+  .dlg-botones { display: flex; flex-wrap: wrap; gap: 10px; }
+  .sesion { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 2px 12px; font-size: 14px; }
+  .sesion #usuario-nombre { font-weight: 600; color: var(--tinta); }
+  .enlace { padding: 0; border: 0; background: none; color: var(--marcador); font-size: 14px; font-weight: 500; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+  .boton:disabled { opacity: .7; cursor: wait; }
+
+  /* Responsable y fotos de la revisión */
+  .campo-resp { display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 500; }
+  .campo-resp b { padding: 6px 0; font-size: 17px; }
+  .fotos { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 16px; }
+  .boton-foto { display: inline-flex; align-items: center; gap: 8px; }
+  .fotos-conteo { font-size: 15px; font-weight: 600; color: var(--ctx); }
+  .fotos-prev { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
+  .fotos-prev:empty { display: none; }
+  .fotos-prev figure { position: relative; margin: 0; }
+  .fotos-prev img { display: block; width: 76px; height: 76px; object-fit: cover; border-radius: 6px; border: 1.5px solid var(--linea); }
+  .fotos-prev button { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; border: 0; border-radius: 50%; background: var(--critico); color: #fff; font-size: 17px; line-height: 1; cursor: pointer; }
+  .rev-fotos { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 14px 14px 74px; font-size: 14px; color: var(--tinta-suave); }
+  .rev-fotos img { display: block; width: 96px; height: 96px; object-fit: cover; border-radius: 6px; border: 1.5px solid var(--linea); }
 
   /* Ventana de historial */
   dialog { width: min(640px, calc(100vw - 24px)); max-height: min(85vh, 760px); padding: 0; border: 0; border-radius: 10px; background: var(--pizarron); color: var(--tinta); box-shadow: 0 18px 50px rgba(20, 33, 63, .35); }
@@ -257,6 +290,7 @@
     .gas-lista { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
     .aviso-cab { font-size: 16px; }
     .rev-items { padding-left: 14px; }
+    .rev-fotos { padding-left: 14px; }
     .segmento button { padding: 6px 10px; }
   }
 
@@ -270,7 +304,27 @@
 </style>
 </head>
 <body>
-<div class="pagina">
+<div id="acceso" class="acceso">
+  <div class="acceso-tarjeta">
+    <p class="acceso-marca">MetaBiol</p>
+    <h1>Biodigestor</h1>
+    <p class="sub">Monitoreo en tiempo real</p>
+    <form id="form-login" class="form-acceso" hidden>
+      <label>Usuario
+        <input id="login-correo" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="grupo, docentes o mantenimiento" required>
+      </label>
+      <label>Contraseña
+        <input id="login-clave" type="password" autocomplete="current-password" required>
+      </label>
+      <button id="login-btn" class="boton" type="submit">Entrar</button>
+    </form>
+    <p id="acceso-cargando" class="nota">Cargando…</p>
+    <p id="login-error" class="rev-error" data-nivel="critico" role="alert" hidden></p>
+    <p class="nota acceso-nota">¿No tienes cuenta u olvidaste tu contraseña? Pídela al administrador del proyecto.</p>
+  </div>
+</div>
+
+<div id="app" class="pagina" hidden>
 
   <header class="cabecera">
     <div>
@@ -280,6 +334,7 @@
     <div class="conexion-caja">
       <span id="conexion" class="conexion" data-nivel="sindato"><i></i><span id="conexion-texto">Conectando</span></span>
       <span id="ultima">Sin lecturas todavía</span>
+      <span id="sesion" class="sesion"><span id="usuario-nombre"></span><button id="btn-nombre" class="enlace" type="button">Cambiar nombre</button><button id="btn-salir" class="enlace" type="button">Cerrar sesión</button></span>
     </div>
   </header>
 
@@ -429,22 +484,30 @@
           <h2 id="t-seg">Seguridad: revisión en sitio</h2>
           <button id="btn-historial" class="boton-sec" type="button">Historial</button>
         </div>
+        <p id="rev-solo-ver" class="nota" hidden>Con esta cuenta puedes ver las revisiones, pero solo mantenimiento y docentes pueden registrarlas.</p>
+        <div id="rev-registro">
         <ul id="checklist" class="lista-check"></ul>
         <div class="form-rev">
-          <label>Responsable
-            <input id="rev-resp" type="text" maxlength="60" placeholder="Nombre de quien revisó" autocomplete="name">
-          </label>
+          <div class="campo-resp"><span>Responsable</span><b id="rev-resp"></b></div>
           <label>Tipo de revisión
             <select id="rev-tipo"></select>
           </label>
+        </div>
+        <div class="fotos">
+          <label class="boton-sec boton-foto">Agregar fotos
+            <input id="rev-fotos" type="file" accept="image/*" multiple hidden>
+          </label>
+          <span id="fotos-conteo" class="fotos-conteo"></span>
+          <div id="fotos-prev" class="fotos-prev"></div>
         </div>
         <div class="check-pie">
           <button id="btn-visita" class="boton" type="button">Registrar revisión</button>
           <span id="resumen-check"></span>
         </div>
         <p id="rev-error" class="rev-error" role="alert" hidden></p>
+        </div>
         <dl id="rev-ultimas" class="rev-ultimas"></dl>
-        <p class="nota">Por ahora las revisiones se guardan solo en este dispositivo. Cuando el sistema tenga su servidor 24/7, se compartirán entre todos.</p>
+        <p id="rev-nota" class="nota">Las revisiones y sus fotos se guardan en el servidor y las ve todo el equipo. Se necesita al menos una foto para registrar.</p>
       </section>
     </div>
 
@@ -462,6 +525,29 @@
   </main>
 </div>
 
+<dialog id="dlg-nombre" class="dlg-form" aria-labelledby="t-nombre">
+  <form id="form-nombre" class="dlg-cuerpo">
+    <h2 id="t-nombre">¿Cómo te llamas?</h2>
+    <p class="nota">Esta cuenta la comparten varias personas, así que cada quien escribe su nombre. Se guarda solo en este dispositivo y se borra al cerrar sesión.</p>
+    <label>Nombre completo <input id="nombre-inp" type="text" maxlength="60" autocomplete="name" required></label>
+    <p id="nombre-err" class="rev-error" data-nivel="critico" hidden></p>
+    <button class="boton" type="submit">Guardar</button>
+  </form>
+</dialog>
+
+<dialog id="dlg-clave" class="dlg-form" aria-labelledby="t-clave">
+  <form id="form-clave" class="dlg-cuerpo">
+    <h2 id="t-clave">Nueva contraseña</h2>
+    <label>Contraseña nueva (mínimo 8 caracteres) <input id="clave-1" type="password" autocomplete="new-password" required></label>
+    <label>Repítela <input id="clave-2" type="password" autocomplete="new-password" required></label>
+    <p id="clave-err" class="rev-error" data-nivel="critico" hidden></p>
+    <div class="dlg-botones">
+      <button class="boton" type="submit">Guardar contraseña</button>
+      <button id="clave-cancelar" class="boton-sec" type="button">Cancelar</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="dlg-historial" aria-labelledby="t-hist">
   <div class="dlg-cab">
     <h2 id="t-hist">Historial de revisiones</h2>
@@ -470,6 +556,7 @@
   <div id="hist-lista" class="dlg-cuerpo"></div>
 </dialog>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
 <script>
 (() => {
 'use strict';
@@ -495,11 +582,10 @@ const CONFIG = {
   mqtt: {
     // EMQX Serverless del proyecto (WebSocket seguro, puerto 8084).
     url: 'wss://yed42b16.ala.us-east-1.emqxsl.com:8084/mqtt',
-    // Usuario de SOLO LECTURA (en EMQX tiene prohibido publicar).
-    // Esta contraseña la puede ver cualquiera que abra el código de la página;
-    // por eso este usuario no puede mandar datos, solo escucharlos.
-    usuario: 'Pagina',
-    contrasena: 'U&7uqJE*',
+    // El usuario y la contraseña MQTT de la página (de solo lectura) YA NO van aquí:
+    // se piden a Supabase después de iniciar sesión (tabla "ajustes").
+    usuario: '',
+    contrasena: '',
     prefijo: 'uttn-biodigestor-r7k2qx',
     dispositivos: [
       // 'campos' traduce cada dato del JSON de la placa a un parámetro de esta página.
@@ -512,13 +598,24 @@ const CONFIG = {
     ]
   },
 
-  // Historial 24/7 en Supabase (lo llena EMQX). Esta llave es PÚBLICA y solo permite leer:
-  // las reglas de seguridad de la base de datos no dejan escribir con ella.
+  // Supabase: login, historial 24/7 (lo llena EMQX) y revisiones con fotos.
+  // Esta llave es PÚBLICA: sin iniciar sesión no permite leer ni escribir nada.
   // NUNCA pongan aquí la "secret key".
   supabase: {
     url: 'https://yedrhewssqdixkispjtv.supabase.co',
     llave: 'sb_publishable_FXMJUHJyRe36fhH9VAuKsw_Ej_29rdh',
     consultaMs: 15000      // cada cuánto se buscan eventos nuevos para la bitácora
+  },
+
+  // Cuentas compartidas: se entra con un nombre de usuario (grupo, docentes o mantenimiento).
+  // Supabase solo acepta correos, así que la página lo convierte en
+  //   <correo>+<usuario>@gmail.com   (ej. metabiol.proyecto+grupo@gmail.com)
+  // PEGA_AQUI: el Gmail del proyecto. Las cuentas en Supabase deben usar este mismo correo con +usuario.
+  cuentas: {
+    correoBase: 'metabiolproyecto@gmail.com',
+    nombres: { grupo: 'Grupo', docentes: 'Docentes', mantenimiento: 'Mantenimiento' },
+    // Quiénes pueden registrar revisiones (también lo exige la regla de Supabase)
+    registranRevisiones: ['mantenimiento', 'docentes']
   }
 };
 
@@ -807,9 +904,12 @@ function pintarGas(ahora) {
    ================================================================== */
 const SRV = CONFIG.modo === 'mqtt' && CONFIG.supabase && CONFIG.supabase.url ? CONFIG.supabase : null;
 let estadoServidor = SRV ? 'cargando' : 'apagado';
+let sb = null, usuarioActual = null;   // cliente de Supabase y usuario con sesión
 
 async function srv(ruta, cuerpo) {
+  const { data } = await sb.auth.getSession();
   const op = { headers: { apikey: SRV.llave, 'Content-Type': 'application/json' }, cache: 'no-store' };
+  if (data.session) op.headers.Authorization = 'Bearer ' + data.session.access_token;
   if (cuerpo) { op.method = 'POST'; op.body = JSON.stringify(cuerpo); }
   const r = await fetch(`${SRV.url}/rest/v1/${ruta}`, op);
   if (!r.ok) throw new Error('Servidor ' + r.status);
@@ -1153,7 +1253,7 @@ let limiteVista = 200, guardadoPendiente = null;
    sensor: 'gas' | 'temperatura' | 'presion' | 'seguridad' | 'sistema' */
 function registrar(texto, nivel = 'info', sensor = 'sistema', tipo = 'sistema') {
   // Con servidor, lo de los sensores ya lo guarda EMQX: no se duplica aquí
-  if (SRV && (tipo === 'lectura' || ['gas', 'temperatura', 'presion'].includes(sensor))) return;
+  if (SRV && (tipo === 'lectura' || tipo === 'revision' || ['gas', 'temperatura', 'presion'].includes(sensor))) return;
   eventos.push({ t: Date.now(), texto, nivel, sensor, tipo });
   if (tipo !== 'lectura') pintarBitacora();
   programarGuardado();
@@ -1177,8 +1277,8 @@ function programarGuardado() {
 
 function fuenteBitacora() {
   if (!SRV) return eventos;
-  const locales = eventos.filter(e => e.tipo === 'revision' || e.tipo === 'sistema');
-  return evServidor.concat(locales).sort((a, b) => a.t - b.t);
+  const locales = eventos.filter(e => e.tipo === 'sistema');
+  return evServidor.concat(locales, revisionesComoEventos()).sort((a, b) => a.t - b.t);
 }
 
 function pintarBitacora() {
@@ -1287,7 +1387,9 @@ function calcularAvisos(ahora) {
   }
   // Revisión de seguridad
   const ult = ultimaRevision('mensual');
-  if (!ult) {
+  if (!revisionesCargadas) {
+    // todavía no llegan las revisiones del servidor
+  } else if (!ult) {
     items.push({ nivel: 'alerta', texto: 'Precaución: aún no hay revisiones mensuales registradas. Se recomienda realizar una revisión de seguridad.' });
   } else {
     const dias = Math.floor((ahora - ult.t) / 86400000);
@@ -1415,29 +1517,46 @@ function setPlaca(disp, estado) {
 }
 
 /* ==================================================================
-   12. REVISIONES DE SEGURIDAD (se guardan en este dispositivo)
+   12. REVISIONES DE SEGURIDAD
+   Con servidor: se guardan en Supabase (compartidas, con fotos y a nombre
+   de quien inició sesión). Sin servidor (modo simulado): en este dispositivo.
    ================================================================== */
 const CLAVE_CHECK = 'biodigestor.checklist';
 const CLAVE_REV = 'biodigestor.revisiones.v1';
-const CLAVE_RESP = 'biodigestor.responsable';
+const MAX_FOTOS = 6;
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 let check = { fecha: hoy(), marcados: [] };
-let revisiones = almacen.leer(CLAVE_REV, []);
+let revisiones = SRV ? [] : almacen.leer(CLAVE_REV, []);
 if (!Array.isArray(revisiones)) revisiones = [];
+let revisionesCargadas = !SRV;
+let fotosSel = [];            // [{ archivo, url }] fotos elegidas para la revisión en curso
 
 const ultimaRevision = tipo => revisiones.filter(r => !tipo || r.tipo === tipo).reduce((a, b) => (!a || b.t > a.t ? b : a), null);
 
+/* Eventos de la bitácora a partir de las revisiones (con servidor) */
+function revisionesComoEventos() {
+  return revisiones.map(r => {
+    const ok = r.items.filter(x => x.ok).length, nf = (r.fotos || []).length;
+    return { t: r.t, nivel: ok === r.items.length ? 'ok' : 'alerta', sensor: 'seguridad', tipo: 'revision',
+      texto: `Revisión ${r.tipo} #${r.n} registrada por ${r.responsable} (${ok} de ${r.items.length} puntos, ${nf} ${nf === 1 ? 'foto' : 'fotos'})` };
+  });
+}
+
+async function cargarRevisiones() {
+  if (!SRV) return;
+  const { data, error } = await sb.from('revisiones').select('*').order('creado', { ascending: true });
+  if (error) { marcarServidor(false); return; }
+  revisiones = data.map((r, i) => ({ n: i + 1, id: r.id, t: Date.parse(r.creado), responsable: r.responsable,
+    tipo: r.tipo, items: Array.isArray(r.items) ? r.items : [], fotos: r.fotos || [] }));
+  revisionesCargadas = true;
+  pintarUltimasRevisiones();
+  pintarBitacora();
+  actualizarAviso(calcularAvisos(Date.now()));
+}
+
 function cargarChecklist() {
   const g = almacen.leer(CLAVE_CHECK, null);
-  if (g) {
-    check = { fecha: hoy(), marcados: g.fecha === hoy() ? (g.marcados || []) : [] };
-    // Versión anterior de la página: la "última visita" pasa al historial como revisión rutinaria
-    if (g.ultimaVisita && !revisiones.length) {
-      revisiones.push({ n: 1, t: g.ultimaVisita, responsable: 'No registrado', tipo: 'rutinaria',
-        items: CHECKLIST.map(texto => ({ texto, ok: null })) });
-      almacen.escribir(CLAVE_REV, revisiones);
-    }
-  }
+  if (g) check = { fecha: hoy(), marcados: g.fecha === hoy() ? (g.marcados || []) : [] };
 }
 function guardarChecklist() { almacen.escribir(CLAVE_CHECK, check); }
 
@@ -1447,9 +1566,81 @@ function pintarResumenCheck() {
 let ultimasClave = '';
 function pintarUltimasRevisiones() {
   const m = ultimaRevision('mensual'), r = ultimaRevision('rutinaria');
-  const txt = x => x ? `${fmtCorta(x.t)} ${new Date(x.t).getFullYear()}, ${fmtHM(x.t)} · ${esc(x.responsable)} (${hace(x.t)})` : 'Ninguna registrada';
+  const txt = x => x ? `${fmtCorta(x.t)} ${new Date(x.t).getFullYear()}, ${fmtHM(x.t)} · ${esc(x.responsable)} (${hace(x.t)})`
+                     : (revisionesCargadas ? 'Ninguna registrada' : 'Cargando…');
   const html = `<dt>Última mensual</dt><dd>${txt(m)}</dd><dt>Última rutinaria</dt><dd>${txt(r)}</dd>`;
   if (html !== ultimasClave) { ultimasClave = html; $('#rev-ultimas').innerHTML = html; }
+}
+
+/* ---------- Fotos: se reducen a 1600 px y JPEG antes de subirlas ---------- */
+async function comprimirFoto(archivo) {
+  let img;
+  try { img = await createImageBitmap(archivo, { imageOrientation: 'from-image' }); }
+  catch (e) {
+    img = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = URL.createObjectURL(archivo); });
+  }
+  const f = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return new Promise((ok, mal) => c.toBlob(b => (b ? ok(b) : mal(new Error('foto'))), 'image/jpeg', 0.8));
+}
+function pintarFotos() {
+  const n = fotosSel.length;
+  $('#fotos-conteo').textContent = n ? `${n} ${n === 1 ? 'foto' : 'fotos'}${n >= MAX_FOTOS ? ' (máximo)' : ''}` : 'Sin fotos (mínimo 1)';
+  $('#fotos-conteo').dataset.nivel = n ? 'ok' : 'alerta';
+  $('#fotos-prev').innerHTML = fotosSel.map((f, i) =>
+    `<figure><img src="${f.url}" alt="Foto ${i + 1}"><button type="button" data-quitar="${i}" aria-label="Quitar foto ${i + 1}">×</button></figure>`).join('');
+}
+
+function mensajeRev(texto, nivel) {
+  const el = $('#rev-error');
+  el.textContent = texto; el.dataset.nivel = nivel; el.hidden = !texto;
+}
+
+async function registrarRevision() {
+  const boton = $('#btn-visita'), tipo = $('#rev-tipo').value;
+  if (!puedeRegistrar()) { mensajeRev('Con esta cuenta no se pueden registrar revisiones.', 'critico'); return; }
+  if (!check.marcados.length) { mensajeRev('Marca los puntos que revisaste antes de registrar.', 'critico'); return; }
+  if (!fotosSel.length) { mensajeRev('Agrega al menos una foto de la revisión.', 'critico'); return; }
+  const items = CHECKLIST.map((texto, i) => ({ texto, ok: check.marcados.includes(i) }));
+  const nombre = responsable();
+  boton.disabled = true;
+  try {
+    if (SRV) {
+      const rutas = [], uid = usuarioActual.id;
+      for (let i = 0; i < fotosSel.length; i++) {
+        boton.textContent = `Subiendo fotos (${i + 1} de ${fotosSel.length})…`;
+        const blob = await comprimirFoto(fotosSel[i].archivo);
+        const ruta = `${uid}/${Date.now()}-${i + 1}.jpg`;
+        const { error } = await sb.storage.from('revisiones').upload(ruta, blob, { contentType: 'image/jpeg' });
+        if (error) throw new Error('No se pudo subir una foto: ' + error.message);
+        rutas.push(ruta);
+      }
+      boton.textContent = 'Guardando revisión…';
+      const { error } = await sb.from('revisiones').insert({ tipo, responsable: nombre, items, fotos: rutas });
+      if (error) throw new Error('No se pudo guardar la revisión: ' + error.message);
+      await cargarRevisiones();
+    } else {
+      revisiones.push({ n: revisiones.length + 1, t: Date.now(), responsable: nombre, tipo, items, fotos: fotosSel.map(() => '') });
+      almacen.escribir(CLAVE_REV, revisiones);
+      registrar(revisionesComoEventos().pop().texto, 'ok', 'seguridad', 'revision');
+    }
+    const ultima = revisiones[revisiones.length - 1];
+    mensajeRev(`Revisión ${tipo} #${ultima ? ultima.n : ''} registrada. ¡Gracias!`, 'ok');
+    check.marcados = [];
+    guardarChecklist();
+    $('#checklist').querySelectorAll('input').forEach(c => { c.checked = false; });
+    fotosSel.forEach(f => URL.revokeObjectURL(f.url));
+    fotosSel = [];
+    pintarFotos(); pintarResumenCheck(); pintarUltimasRevisiones();
+    actualizarAviso(calcularAvisos(Date.now()));
+  } catch (e) {
+    mensajeRev(e.message.startsWith('No se pudo') ? e.message : 'No se pudo registrar la revisión. Revisa tu internet e inténtalo de nuevo.', 'critico');
+  } finally {
+    boton.disabled = false;
+    boton.textContent = 'Registrar revisión';
+  }
 }
 
 function construirChecklist() {
@@ -1469,61 +1660,83 @@ function construirChecklist() {
 
   const sel = $('#rev-tipo');
   Object.entries(TIPOS_REVISION).forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); });
-  const resp = $('#rev-resp');
-  resp.value = almacen.leer(CLAVE_RESP, '');
+  $('#rev-resp').textContent = responsable();
+  const soloVer = !puedeRegistrar();
+  $('#rev-registro').hidden = soloVer;
+  $('#rev-solo-ver').hidden = !soloVer;
+  if (soloVer) $('#rev-nota').textContent = 'Las revisiones y sus fotos se guardan en el servidor y las ve todo el equipo.';
 
-  $('#btn-visita').addEventListener('click', () => {
-    const err = $('#rev-error'), nombre = resp.value.trim();
-    if (!nombre) { err.textContent = 'Escribe el nombre del responsable de la revisión.'; err.hidden = false; resp.focus(); return; }
-    if (!check.marcados.length) { err.textContent = 'Marca los puntos que revisaste antes de registrar.'; err.hidden = false; return; }
-    err.hidden = true;
-    const tipo = sel.value;
-    const rev = {
-      n: revisiones.reduce((a, r) => Math.max(a, r.n || 0), 0) + 1,
-      t: Date.now(), responsable: nombre, tipo,
-      items: CHECKLIST.map((texto, i) => ({ texto, ok: check.marcados.includes(i) }))
-    };
-    revisiones.push(rev);
-    almacen.escribir(CLAVE_REV, revisiones);
-    almacen.escribir(CLAVE_RESP, nombre);
-    const ok = rev.items.filter(x => x.ok).length;
-    registrar(`Revisión ${tipo} #${rev.n} registrada por ${nombre} (${ok} de ${CHECKLIST.length} puntos)`, ok === CHECKLIST.length ? 'ok' : 'alerta', 'seguridad', 'revision');
-    check.marcados = [];
-    guardarChecklist();
-    ul.querySelectorAll('input').forEach(c => { c.checked = false; });
-    pintarResumenCheck(); pintarUltimasRevisiones();
-    actualizarAviso(calcularAvisos(Date.now()));
+  $('#rev-fotos').addEventListener('change', e => {
+    for (const archivo of e.target.files) {
+      if (fotosSel.length >= MAX_FOTOS) break;
+      if (!archivo.type.startsWith('image/')) continue;
+      fotosSel.push({ archivo, url: URL.createObjectURL(archivo) });
+    }
+    e.target.value = '';
+    mensajeRev('', 'ok');
+    pintarFotos();
   });
+  $('#fotos-prev').addEventListener('click', e => {
+    const b = e.target.closest('[data-quitar]');
+    if (!b) return;
+    const [f] = fotosSel.splice(Number(b.dataset.quitar), 1);
+    URL.revokeObjectURL(f.url);
+    pintarFotos();
+  });
+  $('#btn-visita').addEventListener('click', registrarRevision);
 
   // Ventana de historial
   const dlg = $('#dlg-historial');
-  $('#btn-historial').addEventListener('click', () => { pintarHistorial(); dlg.showModal(); });
+  $('#btn-historial').addEventListener('click', () => {
+    pintarHistorial(); dlg.showModal();
+    if (SRV) cargarRevisiones().then(pintarHistorial);
+  });
   $('#dlg-cerrar').addEventListener('click', () => dlg.close());
   dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });   // clic fuera de la ventana
+  $('#hist-lista').addEventListener('toggle', e => {                          // fotos al desplegar
+    if (e.target.open && e.target.dataset.fotos === 'pendiente') cargarFotosRevision(e.target);
+  }, true);
 
+  pintarFotos();
   pintarResumenCheck();
   pintarUltimasRevisiones();
 }
 
 function pintarHistorial() {
   const cont = $('#hist-lista');
-  if (!revisiones.length) { cont.innerHTML = '<p class="nota">Todavía no hay revisiones registradas en este dispositivo.</p>'; return; }
+  if (!revisiones.length) {
+    cont.innerHTML = `<p class="nota">${revisionesCargadas ? 'Todavía no hay revisiones registradas.' : 'Cargando revisiones…'}</p>`;
+    return;
+  }
   cont.innerHTML = [...revisiones].sort((a, b) => b.t - a.t).map(r => {
     const conocidos = r.items.filter(x => x.ok !== null);
     const ok = conocidos.filter(x => x.ok).length;
     const nivel = !conocidos.length ? 'sindato' : (ok === r.items.length ? 'ok' : 'alerta');
     const puntos = conocidos.length ? `${ok}/${r.items.length}` : '—';
+    const nf = (r.fotos || []).length;
     const items = r.items.map(x => {
       const nv = x.ok === null ? 'sindato' : (x.ok ? 'ok' : 'critico');
       return `<li data-nivel="${nv}"><b>${x.ok === null ? '?' : (x.ok ? '✓' : '✗')}</b><span>${esc(x.texto)}</span></li>`;
     }).join('');
-    return `<details class="rev-tarjeta"><summary>` +
+    const fotos = nf ? `<div class="rev-fotos" aria-label="Fotos de la revisión">${SRV ? 'Cargando fotos…' : `${nf} ${nf === 1 ? 'foto' : 'fotos'} (en modo simulado no se guardan)`}</div>` : '';
+    return `<details class="rev-tarjeta" data-id="${r.id || ''}" data-fotos="${SRV && nf ? 'pendiente' : ''}"><summary>` +
       `<span class="rev-num">#${r.n}</span>` +
       `<span class="rev-fecha">${fmtLarga(r.t)} · ${fmtHM(r.t)}</span>` +
       `<span class="rev-puntos" data-nivel="${nivel}">${puntos}</span>` +
-      `<span class="rev-detalle">${esc(r.responsable)} · ${TIPOS_REVISION[r.tipo] || r.tipo}</span>` +
-      `</summary><ul class="rev-items">${items}</ul></details>`;
+      `<span class="rev-detalle">${esc(r.responsable)} · ${TIPOS_REVISION[r.tipo] || r.tipo}${nf ? ` · ${nf} ${nf === 1 ? 'foto' : 'fotos'}` : ''}</span>` +
+      `</summary><ul class="rev-items">${items}</ul>${fotos}</details>`;
   }).join('');
+}
+
+/* Las fotos están en una carpeta privada: se piden enlaces temporales (1 hora) */
+async function cargarFotosRevision(det) {
+  det.dataset.fotos = 'cargando';
+  const r = revisiones.find(x => String(x.id) === det.dataset.id), cont = $('.rev-fotos', det);
+  const { data, error } = await sb.storage.from('revisiones').createSignedUrls(r.fotos, 3600);
+  if (error || !data) { cont.textContent = 'No se pudieron cargar las fotos.'; det.dataset.fotos = 'pendiente'; return; }
+  cont.innerHTML = data.filter(f => f.signedUrl).map((f, i) =>
+    `<a href="${f.signedUrl}" target="_blank" rel="noopener"><img src="${f.signedUrl}" alt="Foto ${i + 1} de la revisión #${r.n}" loading="lazy"></a>`).join('');
+  det.dataset.fotos = 'lista';
 }
 
 /* ==================================================================
@@ -1532,7 +1745,7 @@ function pintarHistorial() {
 
 /* --- Simulado --- */
 function crearSimulador() {
-  const s = { temperatura: 25, presion: 0.6 };
+  const s = { temperatura: 29, presion: 0.6 };
   const base = [1210, 1190, 1235];
   const demo = { fuga: false, tempAlta: false, presionAlta: false, sinTemp: false, placaPresion: false };
   const ruido = a => (Math.random() - 0.5) * 2 * a;
@@ -1540,7 +1753,7 @@ function crearSimulador() {
     demo,
     paso(t) {
       const min = t / 60000;
-      const objT = demo.tempAlta ? 33 : 25 + 1.5 * Math.sin(min / 5);
+      const objT = demo.tempAlta ? 38 : 29 + 1.5 * Math.sin(min / 5);
       s.temperatura += (objT - s.temperatura) * (demo.tempAlta ? 0.12 : 0.05) + ruido(0.06);
       const objP = demo.presionAlta ? 2.6 : 0.6 + 0.3 * Math.sin(min / 7);
       s.presion += (objP - s.presion) * 0.08 + ruido(0.02);
@@ -1662,6 +1875,8 @@ function iniciar() {
     cargarEventos('anteriores');
     precargarHistorial();
     setInterval(() => cargarEventos('nuevos'), SRV.consultaMs);
+    cargarRevisiones();
+    setInterval(cargarRevisiones, 5 * 60000);
   }
 
   actualizar();
@@ -1670,7 +1885,159 @@ function iniciar() {
   window.addEventListener('pagehide', () => { podar(); almacen.escribir(CLAVE_BIT, eventos); });
 }
 
-iniciar();
+/* ==================================================================
+   15. ACCESO (login con Supabase Auth)
+   Las cuentas las crea el administrador en Supabase; nadie puede registrarse solo.
+   ================================================================== */
+/* Cuenta compartida: "grupo", "docentes" o "mantenimiento" (lo que va después del + en el correo) */
+function correoDe(usuario) {
+  const u = usuario.trim().toLowerCase();
+  if (u.includes('@')) return u;                       // también se puede escribir el correo completo
+  const [local, dominio] = CONFIG.cuentas.correoBase.trim().toLowerCase().split('@');
+  return `${local}+${u}@${dominio}`;
+}
+function cuentaActual() {
+  if (!usuarioActual) return 'simulado';
+  const m = /\+([^@]+)@/.exec(usuarioActual.email || '');
+  return m ? m[1].toLowerCase() : (usuarioActual.email || '');
+}
+const nombreCuenta = () => CONFIG.cuentas.nombres[cuentaActual()] || cuentaActual();
+const puedeRegistrar = () => !usuarioActual || CONFIG.cuentas.registranRevisiones.includes(cuentaActual());
+
+/* El nombre de la persona se guarda en ESTE dispositivo (no en la cuenta, porque se comparte) */
+const claveNombre = () => 'biodigestor.nombre.' + (usuarioActual ? usuarioActual.id : 'simulado');
+const nombrePersona = () => String(almacen.leer(claveNombre(), '') || '').trim();
+function nombreUsuario() {
+  if (!usuarioActual) return 'Modo simulado';
+  return nombrePersona() || nombreCuenta();
+}
+// Lo que queda escrito en cada revisión: "Ana López (Mantenimiento)"
+const responsable = () => (usuarioActual ? `${nombreUsuario()} (${nombreCuenta()})` : 'Modo simulado');
+function pintarSesion() {
+  $('#usuario-nombre').textContent = `${nombreUsuario()} · cuenta ${nombreCuenta()}`;
+  $('#rev-resp').textContent = responsable();
+}
+
+function mostrarAcceso(vista, msg) {   // vista: 'login' | 'cargando' | 'error'
+  $('#acceso').hidden = false;
+  $('#app').hidden = true;
+  $('#form-login').hidden = vista !== 'login';
+  $('#acceso-cargando').hidden = vista !== 'cargando';
+  const e = $('#login-error');
+  e.textContent = msg || '';
+  e.hidden = !msg;
+  if (vista === 'login') setTimeout(() => $('#login-correo').focus(), 0);
+}
+
+/* Se pide el nombre en cada dispositivo (y de nuevo tras cerrar sesión) */
+function pedirNombre(obligatorio = true) {
+  return new Promise(resolve => {
+    const dlg = $('#dlg-nombre'), inp = $('#nombre-inp'), err = $('#nombre-err');
+    if (dlg.open) return resolve();
+    inp.value = nombrePersona();
+    err.hidden = true;
+    $('#form-nombre').onsubmit = e => {
+      e.preventDefault();
+      const nombre = inp.value.trim().replace(/\s+/g, ' ');
+      if (nombre.length < 3) { err.textContent = 'Escribe tu nombre completo.'; err.hidden = false; return; }
+      almacen.escribir(claveNombre(), nombre);
+      dlg.close();
+      resolve();
+    };
+    dlg.oncancel = e => { if (obligatorio) e.preventDefault(); else resolve(); };
+    dlg.showModal();
+  });
+}
+
+/* Cambio de contraseña (también se usa con el enlace de recuperación por correo) */
+function abrirCambioClave(obligatorio) {
+  const dlg = $('#dlg-clave'), err = $('#clave-err');
+  if (dlg.open) return;
+  err.hidden = true;
+  $('#clave-cancelar').hidden = obligatorio;
+  $('#clave-cancelar').onclick = () => dlg.close();
+  dlg.oncancel = e => { if (obligatorio) e.preventDefault(); };
+  $('#form-clave').onsubmit = async e => {
+    e.preventDefault();
+    const a = $('#clave-1').value, b = $('#clave-2').value;
+    const fallo = t => { err.textContent = t; err.hidden = false; };
+    if (a.length < 8) return fallo('La contraseña debe tener al menos 8 caracteres.');
+    if (a !== b) return fallo('Las contraseñas no coinciden.');
+    const { error } = await sb.auth.updateUser({ password: a });
+    if (error) return fallo(/different|same/i.test(error.message) ? 'La nueva contraseña debe ser distinta de la anterior.' : 'No se pudo cambiar la contraseña. Inténtalo de nuevo.');
+    $('#form-clave').reset();
+    dlg.close();
+    registrar('Contraseña actualizada', 'ok', 'sistema', 'sistema');
+  };
+  dlg.showModal();
+}
+
+let iniciado = false;
+async function entrar(usuario) {
+  usuarioActual = usuario;
+  mostrarAcceso('cargando');
+  if (!nombrePersona()) await pedirNombre();
+  // Credenciales MQTT de solo lectura: solo se entregan con sesión iniciada
+  const { data, error } = await sb.from('ajustes').select('valor').eq('clave', 'mqtt_pagina').maybeSingle();
+  if (error || !data) {
+    mostrarAcceso('login', error
+      ? 'No se pudo conectar con el servidor. Revisa tu internet y vuelve a intentar.'
+      : 'Tu cuenta no tiene acceso a los datos del biodigestor. Pide ayuda al administrador.');
+    return;
+  }
+  CONFIG.mqtt.usuario = data.valor.usuario;
+  CONFIG.mqtt.contrasena = data.valor.contrasena;
+  $('#acceso').hidden = true;
+  $('#app').hidden = false;
+  if (!iniciado) { iniciado = true; iniciar(); }
+  pintarSesion();
+}
+
+async function arrancar() {
+  if (CONFIG.modo !== 'mqtt') {   // modo simulado: sin login ni servidor
+    $('#acceso').hidden = true;
+    $('#app').hidden = false;
+    $('#sesion').hidden = true;
+    iniciar();
+    return;
+  }
+  if (!window.supabase) {
+    mostrarAcceso('error', 'No se pudo cargar el sistema de acceso. Revisa tu internet y recarga la página.');
+    return;
+  }
+  sb = window.supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.llave);
+  sb.auth.onAuthStateChange(evento => {
+    // (no se llaman otras funciones de Supabase aquí dentro; se difieren con setTimeout)
+    if (evento === 'PASSWORD_RECOVERY') setTimeout(() => abrirCambioClave(true), 300);
+    if (evento === 'SIGNED_OUT') location.reload();
+  });
+  $('#form-login').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = $('#login-btn');
+    btn.disabled = true; btn.textContent = 'Entrando…';
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: correoDe($('#login-correo').value), password: $('#login-clave').value
+    });
+    btn.disabled = false; btn.textContent = 'Entrar';
+    if (error) {
+      mostrarAcceso('login', /invalid/i.test(error.message) ? 'Usuario o contraseña incorrectos.'
+        : 'No se pudo iniciar sesión. Revisa tu internet e inténtalo de nuevo.');
+      return;
+    }
+    $('#login-clave').value = '';
+    entrar(data.user);
+  });
+  // Al salir se borra el nombre de este dispositivo, para que la siguiente persona escriba el suyo
+  $('#btn-salir').addEventListener('click', () => { try { localStorage.removeItem(claveNombre()); } catch (e) {} sb.auth.signOut(); });
+  $('#btn-nombre').addEventListener('click', () => pedirNombre(false).then(pintarSesion));
+
+  mostrarAcceso('cargando');
+  const { data } = await sb.auth.getSession();
+  if (data.session) entrar(data.session.user);
+  else mostrarAcceso('login');
+}
+
+arrancar();
 })();
 </script>
 </body>
