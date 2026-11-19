@@ -592,7 +592,8 @@ const CONFIG = {
       // 'corto' es el nombre que sale en los avisos ("Placa de gas desconectada").
       { id: 'gas', nombre: 'ESP32 de gas', corto: 'gas', campos: { fuga: 'fuga_gas' },
         // Nombre de cada sensor de gas, en el MISMO orden que PINES_SENSOR en Gas_MQTT.ino.
-        nombresSensores: ['MQ-2 (pin 34)', 'MQ-4 (pin 35)', 'MQ-4 (pin 32)'] },
+        // 19 nov 2026: se quitó el MQ-2 (era de prueba); quedan los dos MQ-4.
+        nombresSensores: ['MQ-4 (pin 35)', 'MQ-4 (pin 32)'] },
       { id: 'temperatura', nombre: 'ESP32 de temperatura', corto: 'temperatura', campos: { temp: 'temperatura' } },
       { id: 'presion',     nombre: 'Placa de presión (UNO R4 WiFi)', corto: 'presión', campos: { psi: 'presion' } }
     ]
@@ -714,7 +715,14 @@ const gas = { sensores: [], lecturas: [], ts: null };
 let gasPrevio = [];       // último estado anotado en la bitácora, por sensor
 const dispGas = () => CONFIG.mqtt.dispositivos.find(d => d.nombresSensores) || { nombresSensores: [] };
 const nombreGas = i => dispGas().nombresSensores[i] || `Sensor ${i + 1}`;
-const numGas = () => Math.max(1, dispGas().nombresSensores.length, gas.sensores.length);
+const numGas = () => Math.max(1, dispGas().nombresSensores.length || gas.sensores.length);
+// Si llegan más valores que nombres (lecturas viejas o una placa con el código anterior,
+// que mandaba primero el MQ-2), se quitan los de más AL INICIO: así los MQ-4 conservan su nombre.
+function ajustarGas(arr) {
+  if (!Array.isArray(arr)) return arr;
+  const sobran = arr.length - dispGas().nombresSensores.length;
+  return dispGas().nombresSensores.length && sobran > 0 ? arr.slice(sobran) : arr;
+}
 const gasVivo = ahora => gas.ts !== null && ahora - gas.ts <= CONFIG.sinDatoMs;
 
 // Estado de cada placa (online/offline). Se recuerda en el dispositivo para no
@@ -763,8 +771,8 @@ function recibir(datos) {
 /* Estado de cada sensor de gas + anotación en la bitácora cuando cambia */
 function aplicarGas(sensores, lects, ts) {
   const estaba = gasVivo(ts);
-  gas.sensores = sensores.map(s => Boolean(Number(s)));
-  gas.lecturas = Array.isArray(lects) ? lects.map(Number) : [];
+  gas.sensores = ajustarGas(sensores).map(s => Boolean(Number(s)));
+  gas.lecturas = Array.isArray(lects) ? ajustarGas(lects).map(Number) : [];
   gas.ts = ts;
   if (!estaba) gasPrevio = [];
   gas.sensores.forEach((fuga, i) => {
@@ -970,8 +978,8 @@ function lecturaComoEvento(f) {
   const t = Date.parse(f.recibido), d = f.datos || {};
   let texto, nivel = 'info';
   if (f.dispositivo === 'gas') {
-    const s = Array.isArray(d.sensores) ? d.sensores : ('fuga' in d ? [d.fuga] : []);
-    const l = Array.isArray(d.lecturas) ? d.lecturas : ('lectura' in d ? [d.lectura] : []);
+    const s = Array.isArray(d.sensores) ? ajustarGas(d.sensores) : ('fuga' in d ? [d.fuga] : []);
+    const l = Array.isArray(d.lecturas) ? ajustarGas(d.lecturas) : ('lectura' in d ? [d.lectura] : []);
     const fuga = s.some(x => Number(x));
     nivel = fuga ? 'critico' : 'ok';
     texto = `Gas: ${fuga ? 'fuga detectada' : 'sin fuga'} — ` +
@@ -1763,7 +1771,7 @@ async function cargarFotosRevision(det) {
 /* --- Simulado --- */
 function crearSimulador() {
   const s = { temperatura: 29, presion: 0.6 };
-  const base = [1210, 1190, 1235];
+  const base = [1190, 1235];
   const demo = { fuga: false, tempAlta: false, presionAlta: false, sinTemp: false, placaPresion: false };
   const ruido = a => (Math.random() - 0.5) * 2 * a;
   return {
@@ -1774,7 +1782,7 @@ function crearSimulador() {
       s.temperatura += (objT - s.temperatura) * (demo.tempAlta ? 0.12 : 0.05) + ruido(0.06);
       const objP = demo.presionAlta ? 2.6 : 0.6 + 0.3 * Math.sin(min / 7);
       s.presion += (objP - s.presion) * 0.08 + ruido(0.02);
-      const lect = base.map((b, i) => Math.round(b + ruido(15) + (demo.fuga && i === 2 ? 1300 : 0)));
+      const lect = base.map((b, i) => Math.round(b + ruido(15) + (demo.fuga && i === 1 ? 1300 : 0)));
       const d = { gas_sensores: lect.map((l, i) => (l >= base[i] + 800 ? 1 : 0)), gas_lecturas: lect };
       if (!demo.sinTemp) d.temperatura = s.temperatura;
       if (!demo.placaPresion) d.presion = Math.max(0, s.presion);
